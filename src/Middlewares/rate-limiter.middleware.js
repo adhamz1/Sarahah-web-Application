@@ -25,10 +25,10 @@ export const limiter = rateLimit({
     console.log('The key generator is'  , `${ip}-${req.path}`);
     return `${ip}-${req.path}`
   },
-  // store: new MongoStore({
-  //   uri: process.env.DB_URL_LOCAL,
-  //   collectionName:'rateLimiter',
-  //   expireTimeMs: 15 * 60 * 1000,
-  // })
+  store: new MongoStore({
+    uri: process.env.DB_URI_LOCAL,
+    collectionName:'rateLimiter',
+    expireTimeMs: 15 * 60 * 1000,
+  })
 })
 
