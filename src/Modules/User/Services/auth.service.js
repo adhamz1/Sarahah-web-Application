@@ -13,7 +13,6 @@ const nanoid = customAlphabet("0123456789", 5);
 export const SignUp = async (req, res) => {
   const { firstName, lastName, email, password, age, gender, phoneNumber } =
     req.body;
-
   const isEmailExists = await User.findOne({ email });
   if (isEmailExists) {
     return res.status(400).json({ message: "Email already exists" });
@@ -46,6 +45,90 @@ export const SignUp = async (req, res) => {
   });
 
   res.status(201).json({ message: "User created successfully", user });
+};
+
+// Resend Email (confirm or reset)
+export const ResendEmail = async (req, res) => {
+  const { type, email } = req.body
+  if (!type || !email) return res.status(400).json({ message: "type and email are required" })
+  const user = await User.findOne({ email })
+  if (!user) return res.status(404).json({ message: "User not found" })
+
+  if (type === 'confirm') {
+    const otp = customAlphabet("0123456789", 5)();
+    const hashedOtp = hashSync(otp, parseInt(process.env.SALT_ROUNDS));
+    user.otps = { ...(user.otps || {}), confirm: hashedOtp }
+    await user.save()
+    emitter.emit("sendEmails", {
+      to: email,
+      subject: "Confirmation Email",
+      message: `<h1> Your OTP is ${otp}</h1>`,
+    });
+    return res.status(200).json({ message: "Confirmation code resent" })
+  }
+
+  if (type === 'reset') {
+    const resetToken = generateToken({
+      payload: { _id: user._id, email: user.email },
+      signature: process.env.JWT_RESET_SECRET,
+      options: { expiresIn: process.env.JWT_RESET_EXPIRES_IN || "15m", jwtid: v4() },
+    });
+    const resetLink = `${process.env.FRONTEND_BASE_URL || "http://localhost:3000"}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(user.email)}`;
+    emitter.emit("sendEmails", {
+      to: user.email,
+      subject: "Reset your password",
+      message: `<p>Click the link to reset your password: <a href="${resetLink}">Reset Password</a></p>`,
+    });
+    return res.status(200).json({ message: "Reset email resent" })
+  }
+
+  return res.status(400).json({ message: "Invalid type. Use 'confirm' or 'reset'" })
+}
+
+// Forgot Password: generate a reset token and send via email
+export const ForgotPassword = async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) return res.status(200).json({ message: "If the email exists, a reset link has been sent" });
+
+  const resetToken = generateToken({
+    payload: { _id: user._id, email: user.email },
+    signature: process.env.JWT_RESET_SECRET,
+    options: { expiresIn: process.env.JWT_RESET_EXPIRES_IN || "15m", jwtid: v4() },
+  });
+
+  const resetLink = `${process.env.FRONTEND_BASE_URL || "http://localhost:3000"}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(user.email)}`;
+
+  emitter.emit("sendEmails", {
+    to: user.email,
+    subject: "Reset your password",
+    message: `<p>Click the link to reset your password: <a href="${resetLink}">Reset Password</a></p>`,
+  });
+
+  return res.status(200).json({ message: "If the email exists, a reset link has been sent" });
+};
+
+// Reset Password: verify token and set new password
+export const ResetPassword = async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ message: "Token and new password are required" });
+
+  let payload;
+  try {
+    // We use verifyToken from Utils via services typically, but here use jsonwebtoken directly through our utils index
+    const { verifyToken } = await import("../../../Utils/index.js");
+    payload = verifyToken(token, process.env.JWT_RESET_SECRET);
+  } catch (err) {
+    return res.status(400).json({ message: "Invalid or expired reset token" });
+  }
+
+  const user = await User.findOne({ _id: payload._id, email: payload.email });
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  user.password = hashSync(password, parseInt(process.env.SALT_ROUNDS));
+  await user.save();
+
+  return res.status(200).json({ message: "Password reset successfully" });
 };
 
 // Confirm email
@@ -82,6 +165,16 @@ export const Login= async (req, res) => {
   const isPasswordMatched = compareSync(password, user.password);
   if (!isPasswordMatched) {
     return res.status(400).json({ message: "Invalid email or password" });
+  }
+
+  // Enforce at most 2 distinct devices
+  const deviceId = req.headers["x-device-id"] || req.body?.deviceId || req.headers["user-agent"] || "unknown-device";
+  if (!user.devices?.includes(deviceId)) {
+    if ((user.devices?.length || 0) >= 2) {
+      return res.status(403).json({ message: "Device limit reached. Only 2 devices allowed." });
+    }
+    user.devices = Array.from(new Set([...(user.devices || []), deviceId]))
+    await user.save()
   }
 
   // Generate access token
@@ -257,6 +350,16 @@ export const LoginWithGmail = async (req, res) => {
       isConfirmed: true,
       googleSub: sub,
     });
+  }
+
+  // Enforce at most 2 distinct devices
+  const deviceId = req.headers["x-device-id"] || req.body?.deviceId || req.headers["user-agent"] || "unknown-device";
+  if (!loggedInUser.devices?.includes(deviceId)) {
+    if ((loggedInUser.devices?.length || 0) >= 2) {
+      return res.status(403).json({ message: "Device limit reached. Only 2 devices allowed." });
+    }
+    loggedInUser.devices = Array.from(new Set([...(loggedInUser.devices || []), deviceId]))
+    await loggedInUser.save()
   }
 
   const accessToken = generateToken({

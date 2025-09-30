@@ -34,10 +34,14 @@
         const result  =  await cloudinary.api.delete_resources_by_prefix(prefix)
         return result
     }
-
     // delete folder
     export  const DeleteFolder = async (folder) => {
         await CleanUpResourcesByPrefix(folder)
         const result  =  await cloudinary.api.delete_folder(folder)
         return result
+    }
+
+    // Build a transformed image URL for a given public_id
+    export const BuildImageUrl = (public_id, options = {}) => {
+        return cloudinary.url(public_id, options)
     }

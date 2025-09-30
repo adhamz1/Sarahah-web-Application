@@ -5,14 +5,14 @@ import { verifyToken } from '../Utils/index.js'
 
 export const authenticationMiddle = async (req,res,next)=>{
 
-      const {authorization:accesstoken} = req.headers
-      if(!accesstoken) return res.status(400).json({message:"Access token is required"})
+      const tokenHeader = req.headers?.authorization
+      || req.headers?.['x-access-token']
+      || req.headers?.accesstoken
+      || req.headers?.token
+      if(!tokenHeader) return res.status(401).json({message:"Access token is required"})
 
-      // Split the bearer token
-      const [ _ , originalToken] = accesstoken.split(' ')  
-
-      // Verify the token
-      const decodedPayload = verifyToken(originalToken , process.env.JWT_ACCESS_SECRET)
+      // Verify the token (verifyToken handles 'Bearer ' prefix and trims)
+      const decodedPayload = verifyToken(tokenHeader , process.env.JWT_ACCESS_SECRET)
       if(!decodedPayload._id) return res.status(400).json({message:"Invalid token payload"})
 
       // check if token is revoked

@@ -47,7 +47,8 @@ const userSchema = new mongoose.Schema({
     },
     otps:{
         confirm:String,
-        resetPassword:String
+        resetPassword:String,
+        resetExpires: Date
     },
     isConfirmed:{
         type:Boolean,
@@ -67,6 +68,10 @@ const userSchema = new mongoose.Schema({
     profilePicture:{
         secure_url:String,
         public_id:String
+    },
+    devices: {
+        type: [String],
+        default: []
     }
 },{
     timestapmps:true,

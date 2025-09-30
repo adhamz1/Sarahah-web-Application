@@ -12,6 +12,8 @@ authRouter.post('/login',services.Login)
 authRouter.post('/logout', authenticationMiddle , refreshTokenVerify ,services.Logout)
 authRouter.put('/confirm-email',services.ConfirmEmail)
 authRouter.post('/refresh-token', refreshTokenVerify ,  services.RefreshToken)
+authRouter.post('/forgot-password', services.ForgotPassword)
+authRouter.post('/reset-password', services.ResetPassword)
 
 
 export {authRouter} ;

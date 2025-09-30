@@ -5,6 +5,7 @@ import cors from 'cors'
 import helmet from 'helmet';
 import express from "express";
 import dbConnection from "./DB/db.connection.js";
+import './Cron/cleanup-tokens.cron.js'
 
 // Create Express Application
 const app = express();
@@ -15,26 +16,26 @@ app.use(express.json());
 // express.static
 app.use('/uploads', express.static('uploads'))
 
-// var whitelist = process.env.WHITE_LISTED_ORIGINS
-// var corsOptions = {
-//   origin: function (origin, callback) {
-//     console.log('The current origin is' , origin);
-    
-//     if (whitelist.includes(origin) !== -1  || origin == undefined) {
-//       callback(null, true)
-//     } else {
-//       callback(new Error('Not allowed by CORS'))
-//     }
-//   }
-// }
+    var whitelist = process.env.WHITE_LISTED_ORIGINS
+    var corsOptions = {
+    origin: function (origin, callback) {
+        console.log('The current origin is' , origin);
+        
+        if (whitelist.includes(origin) !== -1  || origin == undefined) {
+        callback(null, true)
+        } else {
+        callback(new Error('Not allowed by CORS'))
+        }
+    }
+    }
 
 
-// app.get('/', (req, res) => {
-//     res.send('Congratulations your code is running!');
-// })
+    app.get('/', (req, res) => {
+        res.send('Congratulations your code is running!');
+    })
 
-// app.use(helmet());
-// app.use(cors(corsOptions))
+    app.use(helmet());
+app.use(cors(corsOptions))
 app.use(limiter)
 
 // Use Routes
